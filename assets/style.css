@@ -584,6 +584,8 @@ footer .wrap { border-top: 1px solid var(--hair); padding-top: 26px; display: fl
 .pub-authors { display: flex; flex-wrap: wrap; justify-content: center; gap: 1.1rem 2.6rem; max-width: 1000px; font-family: 'Roboto', sans-serif; }
 .pub-author { display: flex; flex-direction: column; align-items: center; gap: .22rem; line-height: 1.25; }
 .pub-name { font-size: 17px; font-weight: 300; color: var(--accent); letter-spacing: .01em; white-space: nowrap; }
+a.pub-name { text-decoration: none; transition: color .2s; }
+a.pub-name:hover { color: var(--text); }
 .pub-aff { font-size: 13px; font-weight: 300; color: var(--muted); letter-spacing: .04em; white-space: nowrap; }
 .pub-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 1.7rem; }
 .pub-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 34px; padding: 0 16px; border-radius: 999px;
