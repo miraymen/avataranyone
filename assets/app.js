@@ -36,7 +36,7 @@
       } else if (!v.paused) { v.pause(); }
     });
   }, { rootMargin: '200px 0px' });
-  const watch = r => $$('video[data-src], video.lazy', r).forEach(v => vio.observe(v));
+  const watch = r => $$('video[data-src], video.lazy', r).forEach(v => { if (!v.closest('.runway')) vio.observe(v); });
   watch(document);
   const playIn = r => $$('video', r).forEach(v => {
     if (!v.src && v.dataset.src) v.src = v.dataset.src;
@@ -135,6 +135,50 @@
       if (!e.isIntersecting) seen.set(m, false);
     }), { threshold: [0, 0.5] });
     $$('.eng-media').forEach(m => { if (m.querySelector('.eng-input')) io.observe(m); });
+  })();
+
+  (() => {
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const wide = window.matchMedia('(min-width: 901px)');
+    const HOLD = 1500, MOVE = 1400;
+    const play = v => { if (!v.src && v.dataset.src) v.src = v.dataset.src; const p = v.play(); if (p && p.catch) p.catch(() => {}); };
+    const tiles = row => $$('figure video', row);
+    const run = row => {
+      const inp = row.querySelector('.sgt-in');
+      if (!inp || reduce || !wide.matches) return;
+      clearTimeout(row._t1);
+      const iv = inp.querySelector('video');
+      if (iv) { try { iv.currentTime = 0; } catch (e) {} play(iv); }
+      inp.style.transition = 'none';
+      inp.style.transform = '';
+      const b = inp.getBoundingClientRect(), h = row.getBoundingClientRect();
+      if (!b.width || !h.width) return;
+      const sc = Math.min((0.66 * h.width) / b.width, (0.84 * h.height) / b.height);
+      const dx = (h.left + h.width / 2) - (b.left + b.width / 2), dy = (h.top + h.height / 2) - (b.top + b.height / 2);
+      inp.style.transform = `translate(${dx}px, ${dy}px) scale(${sc})`;
+      row.classList.add('intro');
+      row._hold = true;
+      tiles(row).forEach(v => { v.pause(); try { v.currentTime = 0; } catch (e) {} });
+      void inp.offsetWidth;
+      row._t1 = setTimeout(() => {
+        inp.style.transition = `transform ${MOVE / 1000}s cubic-bezier(.65, 0, .35, 1)`;
+        inp.style.transform = '';
+        row.classList.remove('intro');
+        row._t1 = setTimeout(() => {
+          row._hold = false;
+          tiles(row).forEach(v => { try { v.currentTime = 0; } catch (e) {} play(v); });
+        }, MOVE);
+      }, HOLD);
+    };
+    $$('.sgt-row').forEach(row => tiles(row).forEach(v => v.addEventListener('play', () => { if (row._hold) v.pause(); })));
+    const seen = new WeakMap();
+    const io = new IntersectionObserver(es => es.forEach(e => {
+      const row = e.target, panel = row.closest('.tabpanel');
+      const shown = e.isIntersecting && e.intersectionRatio >= 0.5 && (!panel || panel.classList.contains('active'));
+      if (shown && !seen.get(row)) { seen.set(row, true); run(row); }
+      if (!e.isIntersecting) seen.set(row, false);
+    }), { threshold: [0, 0.5] });
+    $$('.sgt-row').forEach(row => io.observe(row));
   })();
 
   $$('.stepper').forEach(st => {
@@ -319,31 +363,102 @@
     };
     video.addEventListener('loadedmetadata', () => (svgMode ? fitSvg() : fit()));
     window.addEventListener('resize', () => (svgMode ? fitSvg() : fit()));
+    wrap._pk = { start, stop };
+    if (wrap.closest('.runway')) return;
     new IntersectionObserver(es => es.forEach(e => (e.isIntersecting ? start() : stop())), { threshold: 0.02 }).observe(wrap);
   });
 
   $$('.method-video').forEach(box => {
     const v = box.querySelector('video');
     const btns = $$('.mch-btn', box);
-    if (!v || !btns.length) return;
+    const frame = box.querySelector('.mv-frame');
+    if (!v || !btns.length || !frame) return;
+    const nativePlay = HTMLMediaElement.prototype.play;
+    let userPaused = false, seeking = false, shown = null;
+    v.play = function () { return userPaused ? Promise.resolve() : nativePlay.call(this); };
+    const bar = document.createElement('div');
+    bar.className = 'hero-controls mv-controls';
+    bar.innerHTML = '<button class="hc-btn hc-play" type="button" aria-label="Pause"></button>' +
+      '<input class="hc-seek" type="range" min="0" max="1000" step="1" value="0" aria-label="Seek">' +
+      '<span class="hc-time">0:00 / 0:00</span>';
+    frame.appendChild(bar);
+    const playBtn = bar.querySelector('.hc-play'), seek = bar.querySelector('.hc-seek'), time = bar.querySelector('.hc-time');
+    const ICON_PLAY = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
+    const ICON_PAUSE = '<svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>';
+    const fmt = s => { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
     const ts = btns.map(b => parseFloat(b.dataset.t) || 0);
-    btns.forEach((b, i) => b.addEventListener('click', () => {
-      v.currentTime = ts[i] + 0.05;
-      const p = v.play(); if (p && p.catch) p.catch(() => {});
-    }));
-    v.addEventListener('timeupdate', () => {
+    const sync = () => {
+      const paused = v.paused || userPaused;
+      if (paused !== shown) {
+        playBtn.innerHTML = paused ? ICON_PLAY : ICON_PAUSE;
+        playBtn.setAttribute('aria-label', paused ? 'Play' : 'Pause');
+        frame.classList.toggle('paused', paused);
+        shown = paused;
+      }
+      if (!seeking && v.duration) seek.value = String(Math.round(1000 * v.currentTime / v.duration));
+      time.textContent = fmt(v.currentTime) + ' / ' + fmt(v.duration);
       let k = 0;
       ts.forEach((t, i) => { if (v.currentTime >= t) k = i; });
       btns.forEach((b, i) => b.classList.toggle('active', i === k));
+    };
+    playBtn.addEventListener('click', () => {
+      if (v.paused || userPaused) { userPaused = false; nativePlay.call(v).catch(() => {}); }
+      else { userPaused = true; v.pause(); }
+      sync();
     });
+    seek.addEventListener('input', () => { seeking = true; if (v.duration) v.currentTime = (+seek.value / 1000) * v.duration; sync(); });
+    seek.addEventListener('change', () => { seeking = false; sync(); });
+    btns.forEach((b, i) => b.addEventListener('click', () => {
+      v.currentTime = ts[i] + 0.05;
+      userPaused = false;
+      nativePlay.call(v).catch(() => {});
+      sync();
+    }));
+    ['timeupdate', 'play', 'pause', 'loadedmetadata', 'seeked'].forEach(ev => v.addEventListener(ev, sync));
+    sync();
   });
 
   $$('.sgc').forEach(c => {
     const slides = $$('.sgc-slide', c), dots = $$('.sgc-dots button', c);
     if (!slides.length) return;
     const ms = parseInt(c.dataset.ms || '9000', 10);
-    let i = 0, timer = null, visible = false, hover = false;
-    const restart = () => { clearTimeout(timer); if (visible && !hover) timer = setTimeout(() => show(i + 1), ms); };
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const wide = window.matchMedia('(min-width: 901px)');
+    const HOLD = 1500, MOVE = 1400;
+    let i = 0, timer = null, visible = false, hover = false, extra = 0, seen = false, t1 = null, t2 = null;
+    const tiles = s => $$('.sgc-tile video', s);
+    const play = v => { if (!v.src && v.dataset.src) v.src = v.dataset.src; const p = v.play(); if (p && p.catch) p.catch(() => {}); };
+    slides.forEach(s => tiles(s).forEach(v => v.addEventListener('play', () => { if (s._hold) v.pause(); })));
+    const intro = s => {
+      clearTimeout(t1); clearTimeout(t2);
+      slides.forEach(x => {
+        x.classList.remove('intro'); x._hold = false;
+        const q = x.querySelector('.sgc-in');
+        if (q) { q.style.transition = 'none'; q.style.transform = ''; }
+      });
+      const inp = s.querySelector('.sgc-in');
+      if (!inp || reduce || !wide.matches) return 0;
+      const b = inp.getBoundingClientRect(), h = s.getBoundingClientRect();
+      if (!b.width || !h.width) return 0;
+      const sc = Math.min((0.66 * h.width) / b.width, (0.84 * h.height) / b.height);
+      const dx = (h.left + h.width / 2) - (b.left + b.width / 2), dy = (h.top + h.height / 2) - (b.top + b.height / 2);
+      inp.style.transform = `translate(${dx}px, ${dy}px) scale(${sc})`;
+      s.classList.add('intro');
+      s._hold = true;
+      tiles(s).forEach(v => { v.pause(); try { v.currentTime = 0; } catch (e) {} });
+      void inp.offsetWidth;
+      t1 = setTimeout(() => {
+        inp.style.transition = `transform ${MOVE / 1000}s cubic-bezier(.65, 0, .35, 1)`;
+        inp.style.transform = '';
+        s.classList.remove('intro');
+        t2 = setTimeout(() => {
+          s._hold = false;
+          tiles(s).forEach(v => { try { v.currentTime = 0; } catch (e) {} play(v); });
+        }, MOVE);
+      }, HOLD);
+      return HOLD + MOVE;
+    };
+    const restart = () => { clearTimeout(timer); if (visible && !hover) timer = setTimeout(() => show(i + 1), ms + extra); };
     const show = k => {
       i = (k + slides.length) % slides.length;
       slides.forEach((s, j) => {
@@ -358,6 +473,7 @@
       });
       dots.forEach((d, j) => d.classList.toggle('active', j === i));
       window.dispatchEvent(new Event('resize'));
+      extra = intro(slides[i]);
       restart();
     };
     $('.sgc-prev', c).addEventListener('click', () => show(i - 1));
@@ -370,7 +486,11 @@
       if (e.key === 'ArrowRight') show(i + 1);
       if (e.key === 'ArrowLeft') show(i - 1);
     });
-    new IntersectionObserver(es => es.forEach(e => { visible = e.isIntersecting; restart(); }), { threshold: 0.3 }).observe(c);
+    new IntersectionObserver(es => es.forEach(e => {
+      visible = e.isIntersecting;
+      if (visible && !seen) { seen = true; show(i); } else restart();
+      if (!visible) seen = false;
+    }), { threshold: 0.3 }).observe(c);
   });
 
   const SG_T = 9.0, sgT0 = performance.now();
@@ -384,8 +504,63 @@
     if (Math.abs(diff) > 0.25) { try { v.currentTime = want; } catch (e) {} v.playbackRate = 1; }
     else v.playbackRate = Math.abs(diff) > 0.02 ? 1 + Math.max(-0.1, Math.min(0.1, diff)) : 1;
   };
-  $$('.sg-turn video').forEach(v => v.addEventListener('playing', () => sgSync(v)));
-  setInterval(() => $$('.sg-turn video').forEach(sgSync), 500);
+  const sgFree = () => $$('.sg-turn video').filter(v => !v.closest('.runway'));
+  sgFree().forEach(v => v.addEventListener('playing', () => sgSync(v)));
+  setInterval(() => sgFree().forEach(sgSync), 500);
+
+  (() => {
+    const run = $('.runway');
+    if (!run) return;
+    const cards = $$('.runway-card', run)
+      .map(c => ({ c, clip: $('.sg-clip video', c), turn: $('.packed video', c), wrap: $('.packed', c), on: false }))
+      .filter(k => k.clip && k.turn && k.wrap);
+    let near = false, raf = 0;
+    const follow = (v, phase) => {
+      if (v.readyState < 1 || !v.duration) return;
+      const d = v.duration, want = phase % d;
+      let diff = want - v.currentTime;
+      if (diff > d / 2) diff -= d;
+      if (diff < -d / 2) diff += d;
+      let rate = 1;
+      if (Math.abs(diff) > 0.2) { try { v.currentTime = want; } catch (e) {} }
+      else if (Math.abs(diff) > 0.02) rate = 1 + Math.max(-0.1, Math.min(0.1, diff));
+      if (v.playbackRate !== rate) v.playbackRate = rate;
+    };
+    const on = k => {
+      if (k.on) return;
+      k.on = true;
+      if (!k.clip.src && k.clip.dataset.src) k.clip.src = k.clip.dataset.src;
+      k.clip.preload = 'auto';
+      k.turn.preload = 'auto';
+      const p = k.clip.play(); if (p && p.catch) p.catch(() => {});
+      if (k.wrap._pk) k.wrap._pk.start();
+      else { const q = k.turn.play(); if (q && q.catch) q.catch(() => {}); }
+    };
+    const off = k => {
+      if (!k.on) return;
+      k.on = false;
+      k.clip.pause();
+      if (k.wrap._pk) k.wrap._pk.stop(); else k.turn.pause();
+    };
+    const pick = () => {
+      const R = run.getBoundingClientRect();
+      cards.forEach(k => {
+        const b = k.c.getBoundingClientRect();
+        if (near && b.right > R.left - 20 && b.left < R.right + b.width + 40) on(k); else off(k);
+      });
+    };
+    const tick = () => {
+      const phase = ((performance.now() - sgT0) / 1000) % SG_T;
+      cards.forEach(k => { if (k.on) { follow(k.turn, phase); follow(k.clip, phase); } });
+      raf = near ? requestAnimationFrame(tick) : 0;
+    };
+    new IntersectionObserver(es => es.forEach(e => {
+      near = e.isIntersecting;
+      pick();
+      if (near && !raf) raf = requestAnimationFrame(tick);
+    }), { rootMargin: '500px 0px' }).observe(run);
+    setInterval(() => { if (near) pick(); }, 250);
+  })();
 })();
 
 (() => {
@@ -394,79 +569,42 @@
   const v = wrap && wrap.querySelector('video');
   if (!v) return;
   const nativePlay = HTMLMediaElement.prototype.play;
-  let userPaused = false, want = true, activated = false, seeking = false;
-  v.play = function () { return userPaused ? Promise.resolve() : nativePlay.call(this); };
-  const [s0, s1] = (wrap.dataset.sound || '').split(',').map(Number);
+  let userPaused = false, seeking = false;
+  v.muted = true;
+  v.play = function () { this.muted = true; return userPaused ? Promise.resolve() : nativePlay.call(this); };
   const ICON = {
     play: '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>',
-    pause: '<svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>',
-    on: '<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg>',
-    off: '<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm18.5 3-3 3-1.4-1.4 1.6-1.6-1.6-1.6L18.5 9l3 3z"/></svg>'
+    pause: '<svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>'
   };
   const bar = document.createElement('div');
   bar.className = 'hero-controls';
   bar.innerHTML = '<button class="hc-btn hc-play" type="button" aria-label="Pause"></button>' +
     '<input class="hc-seek" type="range" min="0" max="1000" step="1" value="0" aria-label="Seek">' +
-    '<span class="hc-time">0:00 / 0:00</span>' +
-    '<button class="hc-btn hc-sound" type="button" aria-label="Sound off" title="Sound: the music plays during his dance (0:20-0:29)"></button>';
+    '<span class="hc-time">0:00 / 0:00</span>';
   stage.appendChild(bar);
-  const hint = document.createElement('button');
-  hint.className = 'hero-sound-hint'; hint.type = 'button'; hint.textContent = '\u{1F50A} Click for music';
-  stage.appendChild(hint);
   const playBtn = bar.querySelector('.hc-play'), seek = bar.querySelector('.hc-seek'), time = bar.querySelector('.hc-time');
-  const soundBtn = bar.querySelector('.hc-sound');
   const fmt = s => { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
-  const canSound = () => activated || !!(navigator.userActivation && navigator.userActivation.hasBeenActive);
-  const inDance = () => v.currentTime >= s0 && v.currentTime < s1;
 
-  let shownPaused = null, shownWant = null;
-  const sync = () => {
+  let shownPaused = null;
+  const tick = () => {
+    if (!v.muted) v.muted = true;
     const paused = v.paused || userPaused;
     if (paused !== shownPaused) {
       playBtn.innerHTML = paused ? ICON.play : ICON.pause; playBtn.setAttribute('aria-label', paused ? 'Play' : 'Pause');
       stage.classList.toggle('paused', paused); shownPaused = paused;
     }
-    if (want !== shownWant) {
-      soundBtn.innerHTML = want ? ICON.on : ICON.off; soundBtn.setAttribute('aria-label', want ? 'Sound off' : 'Sound on');
-      shownWant = want;
-    }
     if (!seeking && v.duration) seek.value = String(Math.round(1000 * v.currentTime / v.duration));
     time.textContent = fmt(v.currentTime) + ' / ' + fmt(v.duration);
   };
-
-  let onScreen = true;
-  const seen = () => onScreen && !document.hidden;
-  const tick = () => {
-    const t = v.currentTime, inside = inDance();
-    if (inside && want && canSound() && seen()) { if (v.muted) { v.muted = false; v.volume = 1; } }
-    else if (!v.muted) v.muted = true;
-    hint.classList.toggle('show', want && !canSound() && !userPaused && seen() && t >= s0 - 3 && t < s1);
-    sync();
-  };
-  ['pointerdown', 'keydown', 'touchstart'].forEach(ev => window.addEventListener(ev, e => {
-    if (!e.isTrusted) return;
-    activated = true;
-    if (bar.contains(e.target) || hint.contains(e.target)) return;
-    if (want && inDance() && seen()) { v.muted = false; v.volume = 1; }
-    tick();
-  }, { capture: true, passive: true }));
   playBtn.addEventListener('click', () => {
     if (v.paused || userPaused) { userPaused = false; nativePlay.call(v).catch(() => {}); }
     else { userPaused = true; v.pause(); }
     tick();
   });
-  seek.addEventListener('input', () => { seeking = true; if (v.duration) v.currentTime = (+seek.value / 1000) * v.duration; sync(); });
+  seek.addEventListener('input', () => { seeking = true; if (v.duration) v.currentTime = (+seek.value / 1000) * v.duration; tick(); });
   seek.addEventListener('change', () => { seeking = false; tick(); });
-  soundBtn.addEventListener('click', () => {
-    if (inDance()) { want = v.muted; v.muted = !want; if (want) v.volume = 1; } else want = !want;
-    tick();
-  });
-  hint.addEventListener('click', () => { want = true; if (inDance()) { v.muted = false; v.volume = 1; } tick(); });
-  ['timeupdate', 'play', 'pause', 'loadedmetadata', 'seeked'].forEach(ev => v.addEventListener(ev, tick));
+  ['timeupdate', 'play', 'pause', 'loadedmetadata', 'seeked', 'volumechange'].forEach(ev => v.addEventListener(ev, tick));
   v.addEventListener('playing', () => stage.classList.add('started'), { once: true });
-  new IntersectionObserver(es => es.forEach(e => { onScreen = e.intersectionRatio >= 0.5; tick(); }),
-    { threshold: [0, 0.25, 0.5, 0.75, 1] }).observe(stage);
-  document.addEventListener('visibilitychange', tick);
 
   const hero = stage.closest('.hero'), cap = hero && hero.querySelector('.hero-caption');
   const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
