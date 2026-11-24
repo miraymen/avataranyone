@@ -91,7 +91,7 @@
 
   (() => {
     const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const HOLD = 1500, MOVE = 1400;
+    const HOLD = 0, MOVE = 1400;
     const start = v => { if (!v.src && v.dataset.src) v.src = v.dataset.src; const p = v.play(); if (p && p.catch) p.catch(() => {}); };
     const run = media => {
       const inp = media.querySelector('.eng-input'), ev = media.querySelector(':scope > video');
@@ -140,7 +140,7 @@
   (() => {
     const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const wide = window.matchMedia('(min-width: 901px)');
-    const HOLD = 1500, MOVE = 1400;
+    const HOLD = 0, MOVE = 1400;
     const play = v => { if (!v.src && v.dataset.src) v.src = v.dataset.src; const p = v.play(); if (p && p.catch) p.catch(() => {}); };
     const tiles = row => $$('figure video', row);
     const run = row => {
@@ -424,7 +424,7 @@
     const ms = parseInt(c.dataset.ms || '9000', 10);
     const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const wide = window.matchMedia('(min-width: 901px)');
-    const HOLD = 1500, MOVE = 1400;
+    const HOLD = 0, MOVE = 1400;
     let i = 0, timer = null, visible = false, hover = false, extra = 0, seen = false, t1 = null, t2 = null;
     const tiles = s => $$('.sgc-tile video', s);
     const play = v => { if (!v.src && v.dataset.src) v.src = v.dataset.src; const p = v.play(); if (p && p.catch) p.catch(() => {}); };
@@ -560,6 +560,10 @@
       if (near && !raf) raf = requestAnimationFrame(tick);
     }), { rootMargin: '500px 0px' }).observe(run);
     setInterval(() => { if (near) pick(); }, 250);
+
+    const go = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { run.classList.add('go'); go.disconnect(); } }),
+      { threshold: 0.2 });
+    go.observe(run);
   })();
 })();
 
