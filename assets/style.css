@@ -442,6 +442,15 @@ footer .wrap { border-top: 1px solid var(--hair); padding-top: 26px; display: fl
 .runway-rows.go:hover .runway-track { animation-play-state: paused; }
 .runway-rows .runway-card.sg-rcard { width: 220px; }
 @media (max-width: 700px) { .runway-rows .runway-card.sg-rcard { width: 150px; } .runway.runway-rows { gap: 14px; } }
+.runway-scrub { display: flex; justify-content: center; margin: 26px auto 0; }
+.runway-scrub input[type="range"] { -webkit-appearance: none; appearance: none; width: min(560px, 72vw); height: 4px; margin: 0;
+  border-radius: 999px; background: rgba(var(--accent-rgb), 0.22); cursor: pointer; outline-offset: 8px; }
+.runway-scrub input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 16px; height: 16px;
+  border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 5px rgba(var(--accent-rgb), 0.18); transition: box-shadow .2s; }
+.runway-scrub input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border: 0; border-radius: 50%; background: var(--accent);
+  box-shadow: 0 0 0 5px rgba(var(--accent-rgb), 0.18); }
+.runway-scrub input[type="range"]:hover::-webkit-slider-thumb, .runway-scrub input[type="range"]:active::-webkit-slider-thumb {
+  box-shadow: 0 0 0 8px rgba(var(--accent-rgb), 0.24); }
 
 .sg-gallery { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 22px 16px; }
 .sg-gcard { display: flex; flex-direction: column; gap: 6px; }

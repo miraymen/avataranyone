@@ -578,10 +578,58 @@
       if (near && !raf) raf = requestAnimationFrame(tick);
     }), { rootMargin: '500px 0px' }).observe(run);
     setInterval(() => { if (near) pick(); }, 250);
+    run._pick = pick;
 
     const go = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { run.classList.add('go'); go.disconnect(); } }),
       { threshold: 0.2 });
     go.observe(run);
+  })();
+
+  (() => {
+    const run = $('.runway.runway-rows');
+    if (!run) return;
+    const tracks = $$('.runway-track', run);
+    if (!tracks.length) return;
+    const box = document.createElement('div');
+    box.className = 'runway-scrub';
+    box.innerHTML = '<input type="range" min="0" max="1000" step="1" value="0" aria-label="Move through the avatars">';
+    run.after(box);
+    const sl = box.querySelector('input');
+    const anims = () => tracks.map(t => (t.getAnimations ? t.getAnimations()[0] : null));
+    const dur = a => { const d = a && a.effect && a.effect.getTiming().duration; return typeof d === 'number' && d > 0 ? d : 0; };
+    let drag = false, taken = false, hover = false, manual = 0;
+    const setFrac = f => {
+      anims().forEach((a, i) => {
+        const d = dur(a);
+        if (d) { a.currentTime = f * d; return; }
+        const p = (i % 2 ? 1 - f : f) * 50;
+        tracks[i].style.transform = `translateX(-${p}%)`;
+      });
+      manual = f;
+    };
+    const frac = () => {
+      const a = anims()[0], d = dur(a);
+      return d ? (((a.currentTime || 0) % d) + d) % d / d : manual;
+    };
+    const resume = () => { if (!drag && !hover && run.classList.contains('go')) anims().forEach(a => a && dur(a) && a.play()); };
+    const hold = () => anims().forEach(a => a && dur(a) && a.pause());
+    const begin = () => { drag = true; taken = true; hold(); };
+    const end = () => { drag = false; resume(); };
+    sl.addEventListener('pointerdown', begin);
+    sl.addEventListener('keydown', () => { if (!drag) { taken = true; hold(); } });
+    sl.addEventListener('input', () => { if (!taken) { taken = true; hold(); } setFrac(+sl.value / 1000); if (run._pick) run._pick(); });
+    sl.addEventListener('change', end);
+    sl.addEventListener('pointerup', end);
+    sl.addEventListener('blur', () => { if (!drag) resume(); });
+    run.addEventListener('mouseenter', () => { hover = true; if (taken) hold(); });
+    run.addEventListener('mouseleave', () => { hover = false; if (taken) resume(); });
+    let vis = false;
+    const show = () => {
+      if (!drag && document.activeElement !== sl) sl.value = String(Math.round(frac() * 1000));
+      if (vis) requestAnimationFrame(show);
+    };
+    new IntersectionObserver(es => es.forEach(e => { const was = vis; vis = e.isIntersecting; if (vis && !was) requestAnimationFrame(show); }))
+      .observe(box);
   })();
 })();
 
