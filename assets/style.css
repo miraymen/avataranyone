@@ -118,6 +118,9 @@ button { font: inherit; color: inherit; }
                 max-width: none; max-height: none; object-fit: fill; }
 .packed.svg canvas { display: none; }
 .packed.svg video { opacity: 1; filter: url(#packed-alpha); }
+.packed .pk-poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none;
+  transition: opacity .6s var(--ease); }
+.packed.ready .pk-poster, .packed.svg.playing .pk-poster { opacity: 0; }
 .hero .hero-packed { top: 65px; }
 .hero-vignette { position: absolute; inset: 0; pointer-events: none;
   background: radial-gradient(ellipse at center, transparent 0%, transparent 38%, rgba(0, 0, 0, 0.38) 100%); }

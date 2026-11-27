@@ -361,6 +361,8 @@
         ['width', 'height', 'left', 'top'].forEach(k => { video.style[k] = ''; });
       }
     };
+    video.addEventListener('playing', () => wrap.classList.add('playing'));
+    video.addEventListener('emptied', () => wrap.classList.remove('playing'));
     video.addEventListener('loadedmetadata', () => (svgMode ? fitSvg() : fit()));
     window.addEventListener('resize', () => (svgMode ? fitSvg() : fit()));
     wrap._pk = { start, stop };
@@ -494,15 +496,28 @@
   });
 
   const SG_T = 9.0, sgT0 = performance.now();
-  const sgSync = v => {
-    if (v.readyState < 1 || v.paused) return;
-    const d = v.duration || SG_T;
-    const want = (((performance.now() - sgT0) / 1000) % SG_T) % d;
+  const SG_SEEK_GAP = 1500;
+  const sgCorrect = (v, want, d) => {
     let diff = want - v.currentTime;
     if (diff > d / 2) diff -= d;
     if (diff < -d / 2) diff += d;
-    if (Math.abs(diff) > 0.25) { try { v.currentTime = want; } catch (e) {} v.playbackRate = 1; }
-    else v.playbackRate = Math.abs(diff) > 0.02 ? 1 + Math.max(-0.1, Math.min(0.1, diff)) : 1;
+    const t = performance.now();
+    if (Math.abs(diff) > 0.3) {
+      const first = v._sgSeek == null;
+      if (!v.seeking && (first || (v.readyState >= 2 && t - v._sgSeek > SG_SEEK_GAP))) {
+        v._sgSeek = t;
+        try { v.currentTime = want; } catch (e) {}
+        if (v.playbackRate !== 1) v.playbackRate = 1;
+        return;
+      }
+    }
+    const rate = Math.abs(diff) > 0.02 ? 1 + Math.max(-0.1, Math.min(0.1, diff)) : 1;
+    if (v.playbackRate !== rate) v.playbackRate = rate;
+  };
+  const sgSync = v => {
+    if (v.readyState < 1 || v.paused) return;
+    const d = v.duration || SG_T;
+    sgCorrect(v, (((performance.now() - sgT0) / 1000) % SG_T) % d, d);
   };
   const sgFree = () => $$('.sg-turn video').filter(v => !v.closest('.runway'));
   sgFree().forEach(v => v.addEventListener('playing', () => sgSync(v)));
@@ -517,14 +532,16 @@
     let near = false, raf = 0;
     const follow = (v, phase) => {
       if (v.readyState < 1 || !v.duration) return;
-      const d = v.duration, want = phase % d;
-      let diff = want - v.currentTime;
-      if (diff > d / 2) diff -= d;
-      if (diff < -d / 2) diff += d;
-      let rate = 1;
-      if (Math.abs(diff) > 0.2) { try { v.currentTime = want; } catch (e) {} }
-      else if (Math.abs(diff) > 0.02) rate = 1 + Math.max(-0.1, Math.min(0.1, diff));
-      if (v.playbackRate !== rate) v.playbackRate = rate;
+      sgCorrect(v, phase % v.duration, v.duration);
+    };
+    const pre = k => {
+      if (k.pre) return;
+      k.pre = true;
+      if (!k.clip.src && k.clip.dataset.src) k.clip.src = k.clip.dataset.src;
+      k.clip.preload = 'auto';
+      k.turn.preload = 'auto';
+      const im = k.wrap.querySelector('.pk-poster');
+      if (im) im.loading = 'eager';
     };
     const on = k => {
       if (k.on) return;
@@ -547,6 +564,7 @@
       cards.forEach(k => {
         const b = k.c.getBoundingClientRect();
         if (near && b.right > R.left - 20 && b.left < R.right + b.width + 40) on(k); else off(k);
+        if (near && b.right > R.left - 3 * b.width && b.left < R.right + 3 * b.width) pre(k);
       });
     };
     const tick = () => {
