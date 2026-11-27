@@ -475,6 +475,9 @@ footer .wrap { border-top: 1px solid var(--hair); padding-top: 26px; display: fl
 .sgc-slide .sgc-in { z-index: 2; align-self: center; margin-bottom: 25px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35); }
 .sgc-slide .sgc-tile { transition: opacity 1.4s var(--ease); }
 .sgc-slide.intro .sgc-tile { opacity: 0.12; }
+.sgc-slide.zoom .sgc-tile { overflow: hidden; }
+.sgc-slide.zoom .packed > canvas, .sgc-slide.zoom .packed > .pk-poster { transform: scale(1.26087); transform-origin: 50% 91.667%; }
+.sgc-slide.zoom .packed.svg > video { transform: scale(1.26087); transform-origin: 50% 45.833%; }
 .sgc-ctl { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 16px; flex-wrap: wrap; }
 .sgc-ctl > button { width: 40px; height: 40px; border-radius: 999px; border: 1px solid var(--hair); background: none; color: var(--text); cursor: pointer; font-size: 16px; }
 .sgc-dots { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
