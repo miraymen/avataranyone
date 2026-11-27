@@ -597,9 +597,11 @@
     const box = document.createElement('div');
     box.className = 'runway-scrub';
     box.innerHTML = '<button class="rs-btn" type="button"></button>' +
-      '<input type="range" min="0" max="1000" step="1" value="0" aria-label="Move through the avatars">';
+      '<input type="range" min="0" max="1000" step="1" value="0" aria-label="Move through the avatars">' +
+      '<span class="rs-time" aria-hidden="true">0:00 / 0:00</span>';
     run.after(box);
-    const btn = box.querySelector('.rs-btn'), sl = box.querySelector('input');
+    const btn = box.querySelector('.rs-btn'), sl = box.querySelector('input'), tm = box.querySelector('.rs-time');
+    const fmt = s => { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
     const anims = () => tracks.map(t => (t.getAnimations ? t.getAnimations()[0] : null));
     const dur = a => { const d = a && a.effect && a.effect.getTiming().duration; return typeof d === 'number' && d > 0 ? d : 0; };
     let drag = false, taken = false, hover = false, paused = false, manual = 0;
@@ -615,6 +617,11 @@
       const a = anims()[0], d = dur(a);
       return d ? (((a.currentTime || 0) % d) + d) % d / d : manual;
     };
+    const total = () => {
+      const d = dur(anims()[0]);
+      return (d || parseFloat(getComputedStyle(tracks[0]).animationDuration) * 1000 || 0) / 1000;
+    };
+    const clock = f => { const T = total(); tm.textContent = fmt(f * T) + ' / ' + fmt(T); };
     const hold = () => anims().forEach(a => { if (a && dur(a)) a.pause(); });
     const resume = () => {
       if (drag || hover || paused || !run.classList.contains('go')) return;
@@ -626,15 +633,16 @@
     };
     btn.addEventListener('click', () => { paused = !paused; taken = true; if (paused) hold(); else resume(); label(); });
     sl.addEventListener('pointerdown', () => { drag = true; taken = true; hold(); });
-    sl.addEventListener('input', () => { taken = true; hold(); setFrac(+sl.value / 1000); if (run._pick) run._pick(); });
+    sl.addEventListener('input', () => { taken = true; hold(); setFrac(+sl.value / 1000); clock(+sl.value / 1000); if (run._pick) run._pick(); });
     sl.addEventListener('change', () => { drag = false; resume(); });
     window.addEventListener('pointerup', () => { if (drag) { drag = false; resume(); } });
     run.addEventListener('mouseenter', () => { hover = true; if (taken) hold(); });
     run.addEventListener('mouseleave', () => { hover = false; if (taken) resume(); });
     label();
+    clock(0);
     let vis = false;
     const show = () => {
-      if (!drag) sl.value = String(Math.round(frac() * 1000));
+      if (!drag) { const f = frac(); sl.value = String(Math.round(f * 1000)); clock(f); }
       if (vis) requestAnimationFrame(show);
     };
     new IntersectionObserver(es => es.forEach(e => { const was = vis; vis = e.isIntersecting; if (vis && !was) requestAnimationFrame(show); }))

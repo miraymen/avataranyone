@@ -448,6 +448,8 @@ footer .wrap { border-top: 1px solid var(--hair); padding-top: 26px; display: fl
   transition: border-color .2s, color .2s; }
 .rs-btn:hover, .rs-btn:focus-visible { border-color: var(--accent); color: var(--accent); outline: none; }
 .rs-btn svg { width: 14px; height: 14px; fill: currentColor; }
+.rs-time { flex: none; font: 12px/1 ui-monospace, Menlo, monospace; color: var(--muted, #777); min-width: 84px; text-align: left; font-variant-numeric: tabular-nums; }
+@media (max-width: 700px) { .runway-scrub { gap: 10px; } .runway-scrub input[type="range"] { width: 50vw; } .rs-time { min-width: 0; font-size: 11px; } }
 .runway-scrub input[type="range"] { -webkit-appearance: none; appearance: none; width: min(560px, 72vw); height: 4px; margin: 0;
   border-radius: 999px; background: rgba(var(--accent-rgb), 0.22); cursor: pointer; outline-offset: 8px; }
 .runway-scrub input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 16px; height: 16px;
