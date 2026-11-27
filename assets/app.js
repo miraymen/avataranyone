@@ -590,20 +590,24 @@
     if (!run) return;
     const tracks = $$('.runway-track', run);
     if (!tracks.length) return;
+    const ICON = {
+      play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',
+      pause: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>'
+    };
     const box = document.createElement('div');
     box.className = 'runway-scrub';
-    box.innerHTML = '<input type="range" min="0" max="1000" step="1" value="0" aria-label="Move through the avatars">';
+    box.innerHTML = '<button class="rs-btn" type="button"></button>' +
+      '<input type="range" min="0" max="1000" step="1" value="0" aria-label="Move through the avatars">';
     run.after(box);
-    const sl = box.querySelector('input');
+    const btn = box.querySelector('.rs-btn'), sl = box.querySelector('input');
     const anims = () => tracks.map(t => (t.getAnimations ? t.getAnimations()[0] : null));
     const dur = a => { const d = a && a.effect && a.effect.getTiming().duration; return typeof d === 'number' && d > 0 ? d : 0; };
-    let drag = false, taken = false, hover = false, manual = 0;
+    let drag = false, taken = false, hover = false, paused = false, manual = 0;
     const setFrac = f => {
       anims().forEach((a, i) => {
         const d = dur(a);
         if (d) { a.currentTime = f * d; return; }
-        const p = (i % 2 ? 1 - f : f) * 50;
-        tracks[i].style.transform = `translateX(-${p}%)`;
+        tracks[i].style.transform = `translateX(-${(i % 2 ? 1 - f : f) * 50}%)`;
       });
       manual = f;
     };
@@ -611,21 +615,26 @@
       const a = anims()[0], d = dur(a);
       return d ? (((a.currentTime || 0) % d) + d) % d / d : manual;
     };
-    const resume = () => { if (!drag && !hover && run.classList.contains('go')) anims().forEach(a => a && dur(a) && a.play()); };
-    const hold = () => anims().forEach(a => a && dur(a) && a.pause());
-    const begin = () => { drag = true; taken = true; hold(); };
-    const end = () => { drag = false; resume(); };
-    sl.addEventListener('pointerdown', begin);
-    sl.addEventListener('keydown', () => { if (!drag) { taken = true; hold(); } });
-    sl.addEventListener('input', () => { if (!taken) { taken = true; hold(); } setFrac(+sl.value / 1000); if (run._pick) run._pick(); });
-    sl.addEventListener('change', end);
-    sl.addEventListener('pointerup', end);
-    sl.addEventListener('blur', () => { if (!drag) resume(); });
+    const hold = () => anims().forEach(a => { if (a && dur(a)) a.pause(); });
+    const resume = () => {
+      if (drag || hover || paused || !run.classList.contains('go')) return;
+      anims().forEach(a => { if (a && dur(a)) a.play(); });
+    };
+    const label = () => {
+      btn.innerHTML = paused ? ICON.play : ICON.pause;
+      btn.setAttribute('aria-label', paused ? 'Play the avatars' : 'Pause the avatars');
+    };
+    btn.addEventListener('click', () => { paused = !paused; taken = true; if (paused) hold(); else resume(); label(); });
+    sl.addEventListener('pointerdown', () => { drag = true; taken = true; hold(); });
+    sl.addEventListener('input', () => { taken = true; hold(); setFrac(+sl.value / 1000); if (run._pick) run._pick(); });
+    sl.addEventListener('change', () => { drag = false; resume(); });
+    window.addEventListener('pointerup', () => { if (drag) { drag = false; resume(); } });
     run.addEventListener('mouseenter', () => { hover = true; if (taken) hold(); });
     run.addEventListener('mouseleave', () => { hover = false; if (taken) resume(); });
+    label();
     let vis = false;
     const show = () => {
-      if (!drag && document.activeElement !== sl) sl.value = String(Math.round(frac() * 1000));
+      if (!drag) sl.value = String(Math.round(frac() * 1000));
       if (vis) requestAnimationFrame(show);
     };
     new IntersectionObserver(es => es.forEach(e => { const was = vis; vis = e.isIntersecting; if (vis && !was) requestAnimationFrame(show); }))

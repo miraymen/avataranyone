@@ -442,7 +442,12 @@ footer .wrap { border-top: 1px solid var(--hair); padding-top: 26px; display: fl
 .runway-rows.go:hover .runway-track { animation-play-state: paused; }
 .runway-rows .runway-card.sg-rcard { width: 220px; }
 @media (max-width: 700px) { .runway-rows .runway-card.sg-rcard { width: 150px; } .runway.runway-rows { gap: 14px; } }
-.runway-scrub { display: flex; justify-content: center; margin: 26px auto 0; }
+.runway-scrub { display: flex; justify-content: center; align-items: center; gap: 16px; margin: 26px auto 0; }
+.rs-btn { flex: none; width: 34px; height: 34px; padding: 0; border-radius: 50%; border: 1px solid var(--hair); background: var(--panel);
+  color: var(--text); display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  transition: border-color .2s, color .2s; }
+.rs-btn:hover, .rs-btn:focus-visible { border-color: var(--accent); color: var(--accent); outline: none; }
+.rs-btn svg { width: 14px; height: 14px; fill: currentColor; }
 .runway-scrub input[type="range"] { -webkit-appearance: none; appearance: none; width: min(560px, 72vw); height: 4px; margin: 0;
   border-radius: 999px; background: rgba(var(--accent-rgb), 0.22); cursor: pointer; outline-offset: 8px; }
 .runway-scrub input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 16px; height: 16px;
